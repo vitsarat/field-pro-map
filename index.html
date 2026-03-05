@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>FIELD PRO MAP</title>
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1a1a1a">
+  
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+
+  <script src="https://api.longdo.com/map3/?key=e4f261399a627a74e25b921a90843bd1"></script>
+  
+  <style>
+    body { margin: 0; font-family: 'Kanit', sans-serif; background-color: #f4f4f4; overflow: hidden; }
+    .news-ticker { background-color: #1a1a1a; color: #00ffcc; padding: 8px 10px; font-size: 14px; white-space: nowrap; overflow: hidden; box-sizing: border-box; border-bottom: 2px solid #00ffcc; }
+    .news-ticker span { display: inline-block; padding-left: 100%; animation: marquee 40s linear infinite; }
+    @keyframes marquee { 0% { transform: translate(0, 0); } 100% { transform: translate(-100%, 0); } }
+    .filter-bar { padding: 10px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; z-index: 100; position: relative; }
+    select { padding: 8px; border-radius: 5px; border: 1px solid #ccc; font-size: 14px; outline: none; flex: 1; min-width: 120px; }
+    #map { height: calc(100vh - 90px); width: 100%; }
+    #loader { padding: 10px; font-weight: bold; color: #d9534f; width: 100%; text-align: center; }
+  </style>
+</head>
+<body onload="init();">
+
+  <div class="news-ticker">
+    <span id="tickerText">กำลังโหลดข้อมูลข่าวสาร...</span>
+  </div>
+
+  <div class="filter-bar">
+    <select id="filterStatus" onchange="applyFilter()">
+      <option value="all">สถานะทั้งหมด</option>
+      <option value="จบ">✅ จบแล้ว</option>
+      <option value="ไม่จบ">❌ ไม่จบ</option>
+      <option value="ยังไม่ลงพื้นที่">⏳ ยังไม่ลง</option>
+    </select>
+    <select id="filterTeam" onchange="applyFilter()">
+      <option value="all">ทีมงานทั้งหมด</option>
+    </select>
+    <div id="loader">กำลังดึงข้อมูลจากฐานระบบ... ⏳</div>
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    var map;
+    var allMarkersData = [];
+    var markerObjects = [];
+
+    // 🔴 ฝังลิงก์ API ของคุณเรียบร้อยแล้ว 🔴
+    var API_URL = "https://script.google.com/macros/s/AKfycbwR1H_9GU7b7rLH2FzlXJyAvgRlgKo1OptFHHBgmDziVyBGJGr6gRl_CCK5_P9HdPFd4g/exec"; 
+
+    // 🌟 ลิงก์หมุดสถานะที่ถูกต้อง
+    var icons = {
+      "จบ": "https://map.longdo.com/mmmap/images/pin_mark.png", 
+      "ไม่จบ": "https://map.longdo.com/mmmap/images/pin_alert.png", 
+      "ยังไม่ลงพื้นที่": "https://map.longdo.com/mmmap/images/pin_hole.png" 
+    };
+
+    function init() {
+      // 🔐 ด่านตรวจรหัสผ่าน F3574
+      var pin = prompt("🛡️ FIELD PRO SECURE\nกรุณาใส่รหัสผ่านเพื่อเข้าใช้งานแผนที่:");
+      if (pin !== "F3574") {
+        document.body.innerHTML = "<h2 style='text-align:center; margin-top:30vh; color:#d9534f; font-family:sans-serif;'>❌ รหัสผ่านไม่ถูกต้อง<br>ปฏิเสธการเข้าถึงข้อมูล</h2>";
+        return; 
+      }
+
+      map = new longdo.Map({ placeholder: document.getElementById('map'), language: 'th', ui: longdo.UiType.Full });
+      map.Layers.setBase(longdo.Layers.TRAFFIC); // บังคับให้โหลด Vector เพื่อโชว์บ้านเลขที่
+      
+      // ดึงข้อมูลจาก Google Sheets ผ่าน API
+      fetch(API_URL)
+        .then(response => response.json())
+        .then(data => onDataLoaded(data))
+        .catch(error => {
+           console.error('Error:', error);
+           document.getElementById('loader').innerText = "❌ โหลดข้อมูลไม่สำเร็จ กรุณารีเฟรชหน้าจอ";
+        });
+    }
+
+    function onDataLoaded(data) {
+      document.getElementById('loader').style.display = 'none';
+      
+      // ตัดเลข 201 ออกจากแถบวิ่งข่าวสาร
+      var formattedTicker = data.ticker.replace(/201/g, '-');
+      document.getElementById('tickerText').innerText = formattedTicker;
+      
+      allMarkersData = data.markers;
+      populateTeamFilter(allMarkersData);
+      renderMarkers(allMarkersData);
+    }
+
+    function populateTeamFilter(data) {
+      var teamSelect = document.getElementById('filterTeam');
+      var teams = [];
+      data.forEach(function(item) { if(teams.indexOf(item.team) === -1 && item.team !== "ยังไม่ระบุ") teams.push(item.team); });
+      teams.forEach(function(team) {
+        var option = document.createElement('option'); option.value = team; option.text = "ทีม: " + team; teamSelect.appendChild(option);
+      });
+    }
+
+    function renderMarkers(dataToRender) {
+      map.Overlays.clear();
+      dataToRender.forEach(function(item) {
+        var iconUrl = icons[item.status] || icons["ยังไม่ลงพื้นที่"];
+        
+        // ตัดเลข 201 ออกจากข้อมูลป้ายหมุด
+        var shortContract = item.contract.replace(/201/g, '-');
+        
+        var popupContent = "<b>เลขสัญญา:</b> " + shortContract + "<br><b>สถานะ:</b> <span style='color:blue;'>" + item.status + "</span><br><b>ผู้รับผิดชอบ:</b> " + item.team + "<br><b>ที่อยู่:</b> " + item.address;
+        
+        var marker = new longdo.Marker({ lon: item.lon, lat: item.lat }, { title: 'สัญญา: ' + shortContract, icon: { url: iconUrl, offset: { x: 12, y: 32 } }, detail: popupContent, weight: longdo.OverlayWeight.Top });
+        map.Overlays.add(marker);
+      });
+
+      // ซูมแบบเจาะจงถ้ามีหมุดเดียว หรือซูมภาพรวมถ้ามีหลายหมุด
+      if(dataToRender.length === 1) { map.location({ lon: dataToRender[0].lon, lat: dataToRender[0].lat }, true); map.zoom(18, true); } 
+      else if (dataToRender.length > 1) { map.location({ lon: dataToRender[0].lon, lat: dataToRender[0].lat }, true); map.zoom(8, true); }
+    }
+
+    function applyFilter() {
+      var statusFilter = document.getElementById('filterStatus').value;
+      var teamFilter = document.getElementById('filterTeam').value;
+      var filteredData = allMarkersData.filter(function(item) {
+        return (statusFilter === 'all' || item.status === statusFilter) && (teamFilter === 'all' || item.team === teamFilter);
+      });
+      renderMarkers(filteredData);
+    }
+  </script>
+</body>
+</html>
