@@ -52,18 +52,17 @@
     var allMarkersData = [];
     var markerObjects = [];
 
-    // 🔴 ฝังลิงก์ API ของคุณเรียบร้อยแล้ว 🔴
+    // 🔴🔴🔴 สำคัญมาก: เอาลิงก์ Web App ยาวๆ จากข้อ 1.7 มาใส่ในเครื่องหมายคำพูดด้านล่างนี้ 🔴🔴🔴
     var API_URL = "https://script.google.com/macros/s/AKfycbwR1H_9GU7b7rLH2FzlXJyAvgRlgKo1OptFHHBgmDziVyBGJGr6gRl_CCK5_P9HdPFd4g/exec"; 
 
-    // 🌟 ลิงก์หมุดสถานะที่ถูกต้อง
     var icons = {
-      "จบ": "https://map.longdo.com/mmmap/images/pin_mark.png", 
-      "ไม่จบ": "https://map.longdo.com/mmmap/images/pin_alert.png", 
-      "ยังไม่ลงพื้นที่": "https://map.longdo.com/mmmap/images/pin_hole.png" 
+      "จบ": "https://maps.google.com/mapfiles/ms/icons/green-dot.png", 
+      "ไม่จบ": "https://maps.google.com/mapfiles/ms/icons/red-dot.png", 
+      "ยังไม่ลงพื้นที่": "https://maps.google.com/mapfiles/ms/icons/yellow-dot.png" 
     };
 
     function init() {
-      // 🔐 ด่านตรวจรหัสผ่าน F3574
+      // 🔐 ด่านตรวจรหัสผ่าน
       var pin = prompt("🛡️ FIELD PRO SECURE\nกรุณาใส่รหัสผ่านเพื่อเข้าใช้งานแผนที่:");
       if (pin !== "F3574") {
         document.body.innerHTML = "<h2 style='text-align:center; margin-top:30vh; color:#d9534f; font-family:sans-serif;'>❌ รหัสผ่านไม่ถูกต้อง<br>ปฏิเสธการเข้าถึงข้อมูล</h2>";
@@ -71,7 +70,7 @@
       }
 
       map = new longdo.Map({ placeholder: document.getElementById('map'), language: 'th', ui: longdo.UiType.Full });
-      map.Layers.setBase(longdo.Layers.TRAFFIC); // บังคับให้โหลด Vector เพื่อโชว์บ้านเลขที่
+      map.Layers.setBase(longdo.Layers.TRAFFIC);
       
       // ดึงข้อมูลจาก Google Sheets ผ่าน API
       fetch(API_URL)
@@ -79,14 +78,12 @@
         .then(data => onDataLoaded(data))
         .catch(error => {
            console.error('Error:', error);
-           document.getElementById('loader').innerText = "❌ โหลดข้อมูลไม่สำเร็จ กรุณารีเฟรชหน้าจอ";
+           document.getElementById('loader').innerText = "❌ โหลดข้อมูลไม่สำเร็จ";
         });
     }
 
     function onDataLoaded(data) {
       document.getElementById('loader').style.display = 'none';
-      
-      // ตัดเลข 201 ออกจากแถบวิ่งข่าวสาร
       var formattedTicker = data.ticker.replace(/201/g, '-');
       document.getElementById('tickerText').innerText = formattedTicker;
       
@@ -108,17 +105,12 @@
       map.Overlays.clear();
       dataToRender.forEach(function(item) {
         var iconUrl = icons[item.status] || icons["ยังไม่ลงพื้นที่"];
-        
-        // ตัดเลข 201 ออกจากข้อมูลป้ายหมุด
         var shortContract = item.contract.replace(/201/g, '-');
-        
         var popupContent = "<b>เลขสัญญา:</b> " + shortContract + "<br><b>สถานะ:</b> <span style='color:blue;'>" + item.status + "</span><br><b>ผู้รับผิดชอบ:</b> " + item.team + "<br><b>ที่อยู่:</b> " + item.address;
-        
-        var marker = new longdo.Marker({ lon: item.lon, lat: item.lat }, { title: 'สัญญา: ' + shortContract, icon: { url: iconUrl, offset: { x: 12, y: 32 } }, detail: popupContent, weight: longdo.OverlayWeight.Top });
+        var marker = new longdo.Marker({ lon: item.lon, lat: item.lat }, { title: 'สัญญา: ' + shortContract, icon: { url: iconUrl, offset: { x: 16, y: 32 } }, detail: popupContent, weight: longdo.OverlayWeight.Top });
         map.Overlays.add(marker);
       });
 
-      // ซูมแบบเจาะจงถ้ามีหมุดเดียว หรือซูมภาพรวมถ้ามีหลายหมุด
       if(dataToRender.length === 1) { map.location({ lon: dataToRender[0].lon, lat: dataToRender[0].lat }, true); map.zoom(18, true); } 
       else if (dataToRender.length > 1) { map.location({ lon: dataToRender[0].lon, lat: dataToRender[0].lat }, true); map.zoom(8, true); }
     }
