@@ -17,11 +17,37 @@
   
   <style>
     body { margin: 0; font-family: 'Kanit', sans-serif; background-color: #f4f4f4; overflow: hidden; }
-    .news-ticker { background-color: #1a1a1a; color: #00ffcc; padding: 8px 10px; font-size: 14px; white-space: nowrap; overflow: hidden; box-sizing: border-box; border-bottom: 2px solid #00ffcc; }
-    .news-ticker span { display: inline-block; padding-left: 100%; animation: marquee 40s linear infinite; }
+    
+    .news-ticker {
+      background-color: #1a1a1a;
+      color: #00ffcc;
+      padding: 8px 10px;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      box-sizing: border-box;
+      border-bottom: 2px solid #00ffcc;
+    }
+    .news-ticker span {
+      display: inline-block;
+      padding-left: 100%;
+      animation: marquee 40s linear infinite;
+    }
     @keyframes marquee { 0% { transform: translate(0, 0); } 100% { transform: translate(-100%, 0); } }
-    .filter-bar { padding: 10px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; z-index: 100; position: relative; }
+
+    .filter-bar {
+      padding: 10px;
+      background: white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      z-index: 100;
+      position: relative;
+    }
     select { padding: 8px; border-radius: 5px; border: 1px solid #ccc; font-size: 14px; outline: none; flex: 1; min-width: 120px; }
+    
     #map { height: calc(100vh - 90px); width: 100%; }
     #loader { padding: 10px; font-weight: bold; color: #d9534f; width: 100%; text-align: center; }
   </style>
@@ -29,7 +55,7 @@
 <body onload="init();">
 
   <div class="news-ticker">
-    <span id="tickerText">กำลังโหลดข้อมูลข่าวสาร...</span>
+    <span id="tickerText">กำลังเชื่อมต่อข้อมูล...</span>
   </div>
 
   <div class="filter-bar">
@@ -37,12 +63,12 @@
       <option value="all">สถานะทั้งหมด</option>
       <option value="จบ">✅ จบแล้ว</option>
       <option value="ไม่จบ">❌ ไม่จบ</option>
-      <option value="ยังไม่ลงพื้นที่">⏳ ยังไม่ลง</option>
+      <option value="ยังไม่ลงพื้นที่">⏳ ยังไม่ลงพื้นที่</option>
     </select>
     <select id="filterTeam" onchange="applyFilter()">
       <option value="all">ทีมงานทั้งหมด</option>
     </select>
-    <div id="loader">กำลังดึงข้อมูลจากฐานระบบ... ⏳</div>
+    <div id="loader">กำลังดึงพิกัด... ⏳</div>
   </div>
 
   <div id="map"></div>
@@ -52,13 +78,14 @@
     var allMarkersData = [];
     var markerObjects = [];
 
-    // 🔴🔴🔴 สำคัญมาก: เอาลิงก์ Web App ยาวๆ จากข้อ 1.7 มาใส่ในเครื่องหมายคำพูดด้านล่างนี้ 🔴🔴🔴
+    // 🔴 ท่อส่งข้อมูล API จาก Google Sheets ของคุณ
     var API_URL = "https://script.google.com/macros/s/AKfycbwR1H_9GU7b7rLH2FzlXJyAvgRlgKo1OptFHHBgmDziVyBGJGr6gRl_CCK5_P9HdPFd4g/exec"; 
 
+    // 🌟 รูปหมุดแผนที่ (เปลี่ยนเป็นแบบที่ GitHub อนุญาตให้โหลด)
     var icons = {
-      "จบ": "https://maps.google.com/mapfiles/ms/icons/green-dot.png", 
-      "ไม่จบ": "https://maps.google.com/mapfiles/ms/icons/red-dot.png", 
-      "ยังไม่ลงพื้นที่": "https://maps.google.com/mapfiles/ms/icons/yellow-dot.png" 
+      "จบ": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png", 
+      "ไม่จบ": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png", 
+      "ยังไม่ลงพื้นที่": "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-grey.png" 
     };
 
     function init() {
@@ -69,21 +96,28 @@
         return; 
       }
 
-      map = new longdo.Map({ placeholder: document.getElementById('map'), language: 'th', ui: longdo.UiType.Full });
-      map.Layers.setBase(longdo.Layers.TRAFFIC);
+      // สร้างแผนที่ (เอา ui: Full ออกเพื่อป้องกัน Error บนมือถือ)
+      map = new longdo.Map({
+        placeholder: document.getElementById('map'),
+        language: 'th'
+      });
       
-      // ดึงข้อมูลจาก Google Sheets ผ่าน API
+      // บังคับให้โหลดเส้นทางจราจรทับตึก เพื่อให้ซูมดูบ้านเลขที่ได้
+      map.Layers.add(longdo.Layers.TRAFFIC);
+      
+      // ดึงข้อมูลจาก API แทน google.script.run
       fetch(API_URL)
         .then(response => response.json())
         .then(data => onDataLoaded(data))
         .catch(error => {
            console.error('Error:', error);
-           document.getElementById('loader').innerText = "❌ โหลดข้อมูลไม่สำเร็จ";
+           document.getElementById('loader').innerText = "❌ เชื่อมต่อข้อมูลไม่สำเร็จ";
         });
     }
 
     function onDataLoaded(data) {
       document.getElementById('loader').style.display = 'none';
+      
       var formattedTicker = data.ticker.replace(/201/g, '-');
       document.getElementById('tickerText').innerText = formattedTicker;
       
@@ -95,32 +129,60 @@
     function populateTeamFilter(data) {
       var teamSelect = document.getElementById('filterTeam');
       var teams = [];
-      data.forEach(function(item) { if(teams.indexOf(item.team) === -1 && item.team !== "ยังไม่ระบุ") teams.push(item.team); });
+      data.forEach(function(item) {
+        if(teams.indexOf(item.team) === -1 && item.team !== "ยังไม่ระบุ") {
+          teams.push(item.team);
+        }
+      });
       teams.forEach(function(team) {
-        var option = document.createElement('option'); option.value = team; option.text = "ทีม: " + team; teamSelect.appendChild(option);
+        var option = document.createElement('option');
+        option.value = team;
+        option.text = "ทีม: " + team;
+        teamSelect.appendChild(option);
       });
     }
 
     function renderMarkers(dataToRender) {
       map.Overlays.clear();
+      
       dataToRender.forEach(function(item) {
         var iconUrl = icons[item.status] || icons["ยังไม่ลงพื้นที่"];
         var shortContract = item.contract.replace(/201/g, '-');
-        var popupContent = "<b>เลขสัญญา:</b> " + shortContract + "<br><b>สถานะ:</b> <span style='color:blue;'>" + item.status + "</span><br><b>ผู้รับผิดชอบ:</b> " + item.team + "<br><b>ที่อยู่:</b> " + item.address;
-        var marker = new longdo.Marker({ lon: item.lon, lat: item.lat }, { title: 'สัญญา: ' + shortContract, icon: { url: iconUrl, offset: { x: 16, y: 32 } }, detail: popupContent, weight: longdo.OverlayWeight.Top });
+
+        var popupContent = "<b>เลขสัญญา:</b> " + shortContract + "<br>" +
+                           "<b>สถานะ:</b> <span style='color:blue;'>" + item.status + "</span><br>" +
+                           "<b>ผู้รับผิดชอบ:</b> " + item.team + "<br>" +
+                           "<b>ที่อยู่:</b> " + item.address;
+
+        var marker = new longdo.Marker({ lon: item.lon, lat: item.lat }, {
+          title: 'สัญญา: ' + shortContract,
+          icon: { url: iconUrl, offset: { x: 12, y: 41 } }, 
+          detail: popupContent,
+          weight: longdo.OverlayWeight.Top
+        });
+        
         map.Overlays.add(marker);
       });
 
-      if(dataToRender.length === 1) { map.location({ lon: dataToRender[0].lon, lat: dataToRender[0].lat }, true); map.zoom(18, true); } 
-      else if (dataToRender.length > 1) { map.location({ lon: dataToRender[0].lon, lat: dataToRender[0].lat }, true); map.zoom(8, true); }
+      if(dataToRender.length === 1) {
+         map.location({ lon: dataToRender[0].lon, lat: dataToRender[0].lat }, true);
+         map.zoom(18, true); 
+      } else if (dataToRender.length > 1) {
+         map.location({ lon: dataToRender[0].lon, lat: dataToRender[0].lat }, true);
+         map.zoom(8, true); 
+      }
     }
 
     function applyFilter() {
       var statusFilter = document.getElementById('filterStatus').value;
       var teamFilter = document.getElementById('filterTeam').value;
+
       var filteredData = allMarkersData.filter(function(item) {
-        return (statusFilter === 'all' || item.status === statusFilter) && (teamFilter === 'all' || item.team === teamFilter);
+        var matchStatus = (statusFilter === 'all' || item.status === statusFilter);
+        var matchTeam = (teamFilter === 'all' || item.team === teamFilter);
+        return matchStatus && matchTeam;
       });
+
       renderMarkers(filteredData);
     }
   </script>
